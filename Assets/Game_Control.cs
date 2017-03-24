@@ -24,7 +24,7 @@ public class Game_Control : MonoBehaviour {
     public Text playerScoreText;
     public Text AIScoreText;
 
-    public int difficulty = 0;
+    public int difficulty = 1;
 
     private bool gameOver;
 
@@ -127,7 +127,6 @@ public class Game_Control : MonoBehaviour {
                                 spaceOwner[x, y] = 1;
                                 placesLeft--;
 
-                                //Flip
                                 findFlipDirections(x, y, spaceOwner, true);
                                 playerTurn = !playerTurn;
                             }
@@ -140,7 +139,7 @@ public class Game_Control : MonoBehaviour {
             else
             {
                 Debug.Log("AI Turn");
-                //AI();
+                AI();
                 updateScore();
             }
         }
@@ -169,14 +168,47 @@ public class Game_Control : MonoBehaviour {
         AIScoreText.text = "AI Score : " + currentScores[1];
     }
 
+
+
+
     void AI()
     {
-        //Board for negamax to reference
-        int[,] boardChange = new int[8, 8];
-        negaMax(spaceOwner, difficulty, ref boardChange, playerTurn);
-        playerTurn = !playerTurn;
+        //Array for negamax to reference
+        int[] nextMove = new int[2] { -1, -1 };
+        
+        negaMax(spaceOwner, difficulty, ref nextMove);
+        //Reset this right away
+        playerTurn = false;
+        if (nextMove[0] >= 0 && nextMove[1] >= 0)
+        {
+            int x = nextMove[0];
+            int y = nextMove[1];
+            checkFlips(x, y, spaceOwner);
+            GameObject newPiece = Instantiate(chip, new Vector3((float)(x + .5), (float)(-y - .5), (float)8.0), transform.rotation);
+            boardSpaces[x, y] = newPiece;
+            spaceOwner[x, y] = 2;
+            placesLeft--;
+
+            findFlipDirections(x, y, spaceOwner, true);
+        }
+        else
+        {
+            Debug.Log("boardChange still negative");
+        }
+        playerTurn = true;
     }
 
+    private static void DebugBoard()
+    {
+        Debug.Log("[" + spaceOwner[0, 0] + "," + spaceOwner[1, 0] + "," + spaceOwner[2, 0] + "," + spaceOwner[3, 0] + "," + spaceOwner[4, 0] + "," + spaceOwner[5, 0] + "," + spaceOwner[6, 0] + "," + spaceOwner[7, 0] + "]\n" +
+                    "[" + spaceOwner[0, 1] + "," + spaceOwner[1, 1] + "," + spaceOwner[2, 1] + "," + spaceOwner[3, 1] + "," + spaceOwner[4, 1] + "," + spaceOwner[5, 1] + "," + spaceOwner[6, 1] + "," + spaceOwner[7, 1] + "]\n" +
+                    "[" + spaceOwner[0, 2] + "," + spaceOwner[1, 2] + "," + spaceOwner[2, 2] + "," + spaceOwner[3, 2] + "," + spaceOwner[4, 2] + "," + spaceOwner[5, 2] + "," + spaceOwner[6, 2] + "," + spaceOwner[7, 2] + "]\n" +
+                    "[" + spaceOwner[0, 3] + "," + spaceOwner[1, 3] + "," + spaceOwner[2, 3] + "," + spaceOwner[3, 3] + "," + spaceOwner[4, 3] + "," + spaceOwner[5, 3] + "," + spaceOwner[6, 3] + "," + spaceOwner[7, 3] + "]\n" +
+                    "[" + spaceOwner[0, 4] + "," + spaceOwner[1, 4] + "," + spaceOwner[2, 4] + "," + spaceOwner[3, 4] + "," + spaceOwner[4, 4] + "," + spaceOwner[5, 4] + "," + spaceOwner[6, 4] + "," + spaceOwner[7, 4] + "]\n" +
+                    "[" + spaceOwner[0, 5] + "," + spaceOwner[1, 5] + "," + spaceOwner[2, 5] + "," + spaceOwner[3, 5] + "," + spaceOwner[4, 5] + "," + spaceOwner[5, 5] + "," + spaceOwner[6, 5] + "," + spaceOwner[7, 5] + "]\n" +
+                    "[" + spaceOwner[0, 6] + "," + spaceOwner[1, 6] + "," + spaceOwner[2, 6] + "," + spaceOwner[3, 6] + "," + spaceOwner[4, 6] + "," + spaceOwner[5, 6] + "," + spaceOwner[6, 6] + "," + spaceOwner[7, 6] + "]\n" +
+                    "[" + spaceOwner[0, 7] + "," + spaceOwner[1, 7] + "," + spaceOwner[2, 7] + "," + spaceOwner[3, 7] + "," + spaceOwner[4, 7] + "," + spaceOwner[5, 7] + "," + spaceOwner[6, 7] + "," + spaceOwner[7, 7] + "]\n" );
+    }
 
     private int[] scoreBoard(int[,] board)
     {
@@ -187,16 +219,15 @@ public class Game_Control : MonoBehaviour {
         {
             for (int j = 0; j < 8; j++)
             {
-                //Heuristic score based on acquiring corners or sides, also ternarys <3
-                int scoreBias = isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1;
-
-
+                
                 if (board[i, j] == 1)
                 {
+                    int scoreBias = isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1;
                     newPlayerScore += scoreBias;
                 }
                 else if (board[i, j] == 2)
                 {
+                    int scoreBias = isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1;
                     newAIScore += scoreBias;
                 }
             }
@@ -221,10 +252,9 @@ public class Game_Control : MonoBehaviour {
      * 
      * @param board | Board to apply theoretical moves to and score.
      * @param depth | How much fire my poor laptop produces out the vents.
-     * @param myBestBoard | reference for top-level call to output the move the AI should make, other calls bestBoards could probably be used for fancy tree pruning but not likely here.
-     * @param negaPlayerTurn | Decided it probably wouldn't be good idea to mess with global turn variable even if I set back afterwards.
+     * @param myBestMove | reference for top-level call to output the move the AI should make, other calls bestMoves could probably be used for fancy tree pruning.
      */
-    private int negaMax(int [,] board, int depth, ref int[,] myBestBoard, bool negaPlayerTurn)
+    private int negaMax(int [,] board, int depth, ref int[] myBestMove)
     {
         double bestScore = Double.NegativeInfinity;
 
@@ -232,7 +262,10 @@ public class Game_Control : MonoBehaviour {
         if (depth == 0)
         {
             int[] scores = scoreBoard(board);
-            return scores[0] - scores[1];
+            //playerScore - AIScore, since this is being returned to be negated already, it will become AI advantage so leave it if we are returning to AI perspective.
+            int pAdvantage = scores[0] - scores[1];
+
+            return pAdvantage * (playerTurn ? -1 : 1);
         }
         //Foreach possible move..
         for (int i = 0; i < 8; i++)
@@ -243,21 +276,22 @@ public class Game_Control : MonoBehaviour {
                 {
                     //"Make" the move
                     int[,] newBoard = board;
-                    newBoard[i, j] = negaPlayerTurn ? 1 : 2;
+                    newBoard[i, j] = playerTurn ? 1 : 2;
 
                     //Alter our new board accordingly
                     findFlipDirections(i, j, newBoard, false);
 
 
-                    int[,] childBest = new int[8,8];
-
-                    int score = -negaMax(newBoard, depth - 1, ref childBest, !negaPlayerTurn);
+                    int[] childBestMove = new int[2];
+                    playerTurn = !playerTurn;
+                    int score = -negaMax(newBoard, depth - 1, ref childBestMove);
+                    Debug.Log("Returned score from " + i + "," + j + ": " + score);
                     //If this move path is better than previous best..
                     if(score > bestScore)
                     {
                         //Update score for further processing and then store the move we made, latter only matters for top-level as is.
                         bestScore = score;
-                        myBestBoard = newBoard;
+                        myBestMove = new int[2] { i, j };
                     }
                 }
             }
@@ -360,7 +394,6 @@ public class Game_Control : MonoBehaviour {
 
         if (board[currentX, currentY] != 0)
         {
-
             //Is it an "my" piece?
             if (isMyPiece(currentX, currentY, board))
             {
@@ -422,6 +455,8 @@ public class Game_Control : MonoBehaviour {
     //Recursively flip pieces until allied piece is reached.
     void flipPieces(int startX, int startY, int xModify, int yModify, int[,] board, bool realMove)
     {
+
+        
         int currentX = startX + xModify;
         int currentY = startY + yModify;
 
