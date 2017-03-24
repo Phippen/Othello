@@ -10,8 +10,7 @@ public class Game_Control : MonoBehaviour {
 
     //0 means no chip, 1 means player(black) chip, 2 means AI(white) chip
     static int[,] spaceOwner = new int[8, 8];
-    //Used for negamax
-    static int[,] fakeBoard = new int[8, 8];
+
     //Used to keep track of flip counts in each direction (clockwise starting at top-left)
     static int[] flipCounts = new int[8];
     //Prefab
@@ -24,6 +23,8 @@ public class Game_Control : MonoBehaviour {
     public Text alert;
     public Text playerScoreText;
     public Text AIScoreText;
+
+    public int difficulty = 0;
 
     private bool gameOver;
 
@@ -49,8 +50,6 @@ public class Game_Control : MonoBehaviour {
         spaceOwner[4, 4] = 1;
         spaceOwner[3, 4] = 2;
         spaceOwner[4, 3] = 2;
-
-        fakeBoard = spaceOwner;
     }
 
     void Update () {
@@ -165,87 +164,105 @@ public class Game_Control : MonoBehaviour {
     //By summing the 1's we have player score and summing 2's we get AI score, using this to avoid incrementing and decrementing bugs when placing/flipping.
     private void updateScore()
     {
+        int[] currentScores = scoreBoard(spaceOwner);
+        playerScoreText.text = "Player Score : " + currentScores[0];
+        AIScoreText.text = "AI Score : " + currentScores[1];
+    }
+
+    void AI()
+    {
+        //Board for negamax to reference
+        int[,] boardChange = new int[8, 8];
+        negaMax(spaceOwner, difficulty, ref boardChange, playerTurn);
+        playerTurn = !playerTurn;
+    }
+
+
+    private int[] scoreBoard(int[,] board)
+    {
         int newPlayerScore = 0;
         int newAIScore = 0;
+
         for (int i = 0; i < 8; i++)
         {
-            for(int j = 0; j < 8; j++)
+            for (int j = 0; j < 8; j++)
             {
-                if(spaceOwner[i,j] == 1)
+                //Heuristic score based on acquiring corners or sides, also ternarys <3
+                int scoreBias = isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1;
+
+
+                if (board[i, j] == 1)
                 {
-                    newPlayerScore++;
+                    newPlayerScore += scoreBias;
                 }
-                else if(spaceOwner[i,j] == 2)
+                else if (board[i, j] == 2)
                 {
-                    newAIScore++;
+                    newAIScore += scoreBias;
                 }
             }
         }
-        playerScoreText.text = "Player Score : " + newPlayerScore;
-        AIScoreText.text = "AI Score : " + newAIScore;
+        return new int[2] { newPlayerScore, newAIScore };
     }
 
-    //void AI()
-    //{
-    //    for(int i = 0; i < 8; i++)
-    //    {
-    //        for(int j = 0; j < 8; j++)
-    //        {
-    //            if(isMove(i,j, spaceOwner))
-    //            {
-    //                GameObject newPiece = Instantiate(chip, new Vector3((float)(i + .5), (float)(-j - .5), (float)8.0), transform.rotation);
-    //                boardSpaces[i, j] = newPiece;
-    //                spaceOwner[i, j] = 2;
-    //                placesLeft--;
-    //                findFlipDirections(i, j);
-    //                playerTurn = !playerTurn;
-    //                return;
-    //            }
-    //        }
-    //    }
-    //    Debug.Log("No Moves");
-    //    playerTurn = !playerTurn;
-    //}
-
-    private int negaMax(int [,] board, int depth, ref int[] myBestPosition)
+    
+    //Just brute force it
+    private bool isCorner(int i, int j)
     {
-        int bestScore = -100000;
+        return (i == 0 && j == 0) || (i == 0 && j == 7) || (i == 7 && j == 0) || (i == 7 && j == 7);
+    }
 
+    private bool isSide(int i, int j)
+    {
+        return i == 7 || i == 0 || j == 0 || j == 7;
+    }
+
+    /*
+     * @return int | Heuristic score of board for recursive analysis.
+     * 
+     * @param board | Board to apply theoretical moves to and score.
+     * @param depth | How much fire my poor laptop produces out the vents.
+     * @param myBestBoard | reference for top-level call to output the move the AI should make, other calls bestBoards could probably be used for fancy tree pruning but not likely here.
+     * @param negaPlayerTurn | Decided it probably wouldn't be good idea to mess with global turn variable even if I set back afterwards.
+     */
+    private int negaMax(int [,] board, int depth, ref int[,] myBestBoard, bool negaPlayerTurn)
+    {
+        double bestScore = Double.NegativeInfinity;
+
+        //No more thinking, score the board
+        if (depth == 0)
+        {
+            int[] scores = scoreBoard(board);
+            return scores[0] - scores[1];
+        }
+        //Foreach possible move..
         for (int i = 0; i < 8; i++)
         {
             for (int j = 0; j < 8; j++)
             {
                 if (isMove(i, j, board))
                 {
-                    //"Make" move
+                    //"Make" the move
                     int[,] newBoard = board;
-                    newBoard[i, j] = playerTurn ? 1 : 2;
+                    newBoard[i, j] = negaPlayerTurn ? 1 : 2;
+
+                    //Alter our new board accordingly
                     findFlipDirections(i, j, newBoard, false);
 
-                    //If we end here, return score for that move.
-                    if (depth == 0)
-                    {
-                        return scorePosition(i, j, newBoard);
-                    }
-                    else
-                    {
-                        int[] childBest = new int[2];
 
-                        //Shhhhh it's fine, it totally fine to mess with this..
-                        playerTurn = !playerTurn;
+                    int[,] childBest = new int[8,8];
 
-                        int score = -negaMax(newBoard, depth - 1, ref childBest);
-                        
-                        if(score > bestScore)
-                        {
-                            bestScore = score;
-                            myBestPosition = new int[2] { i, j };
-                        }
+                    int score = -negaMax(newBoard, depth - 1, ref childBest, !negaPlayerTurn);
+                    //If this move path is better than previous best..
+                    if(score > bestScore)
+                    {
+                        //Update score for further processing and then store the move we made, latter only matters for top-level as is.
+                        bestScore = score;
+                        myBestBoard = newBoard;
                     }
-                         
                 }
             }
         }
+        return (int)bestScore;
     }
 
 
