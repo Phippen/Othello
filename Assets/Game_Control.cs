@@ -5,35 +5,38 @@ using DG.Tweening;
 
 public class Game_Control : MonoBehaviour {
 
-    //X,Y
+    //Array that holds refrences to the chips themselves, used for displaying and animating them.
     static GameObject[,] boardSpaces = new GameObject[8, 8];
 
-    //0 means no chip, 1 means player(black) chip, 2 means AI(white) chip
+    //Array to represent the board state, 0 - no chip, 1 - player chip, 2 - AI chip
     static int[,] spaceOwner = new int[8, 8];
 
-    //Used to keep track of flip counts in each direction (clockwise starting at top-left)
+    //Used to keep track of number of valid flips in each direction (clockwise starting at top-left)
     static int[] flipCounts = new int[8];
 
-    //Prefab
+    //Chip prefab
     public GameObject chip;
-    //Keep track of turn
+    //Record whos turn it is
     static bool playerTurn = true;
-    //Decrement on piece placement until 0
+    //Decrement when placing a piece until 0
     private int placesLeft = 60;
 
 
-
+    //Used to display end-game announcements as well as when someone has no moves, etc.
     public Text alert;
+
+    //Display current scores(chip counts) during the game 
     public Text playerScoreText;
     public Text AIScoreText;
 
+    //Allows player to adjust the game difficulty
     public Slider difficultySlider;
     public Text difficultyText;
     private int difficulty = 1;
 
+    private int stall = 0;
+
     private bool gameOver;
-    //Increments when there are no moves on a player's turn and resets on a played move, if it hits 2, game over.
-    private int stallCount = 0;
 
     void Start() {
 
@@ -43,16 +46,17 @@ public class Game_Control : MonoBehaviour {
         GameObject white1 = Instantiate(chip, new Vector3((float)(3.5), (float)(-4.5), (float)8.0), transform.rotation);
         GameObject white2 = Instantiate(chip, new Vector3((float)(4.5), (float)(-3.5), (float)8.0), transform.rotation);
 
-        //Flip 2 to black
+        //Flip 2 to black(player)
         black1.transform.Rotate(new Vector3(180, 0, 0));
         black2.transform.Rotate(new Vector3(180, 0, 0));
 
-        //Put
+        //Assign objects to array
         boardSpaces[3, 3] = black1;
         boardSpaces[4, 4] = black2;
         boardSpaces[3, 4] = white1;
         boardSpaces[4, 3] = white2;
 
+        //Initialize state of board
         spaceOwner[3, 3] = 1;
         spaceOwner[4, 4] = 1;
         spaceOwner[3, 4] = 2;
@@ -64,28 +68,14 @@ public class Game_Control : MonoBehaviour {
 
     void Update () {
 
+        //Determine winner if there is one
         if(gameOver)
         {
-            int pScore = 0;
-            int aScore = 0;
-            for (int i = 0; i < 8; i++)
-            {
-                for (int j = 0; j < 8; j++)
-                {
-                    if (spaceOwner[i, j] == 1)
-                    {
-                        pScore++;
-                    }
-                    else if (spaceOwner[i, j] == 2)
-                    {
-                        aScore++;
-                    }
-                }
-            }
+            int[] scores = scoreBoard(spaceOwner, false);
 
-            if (pScore > aScore)
+            if (scores[0] > scores[1])
                 alert.text = "You have won the game!";
-            else if (pScore == aScore)
+            else if (scores[0] == scores[1])
                 alert.text = "It's a draw!";
             else
                 alert.text = "You have lost!";
@@ -93,41 +83,41 @@ public class Game_Control : MonoBehaviour {
         }
         else
         {
+            //Check for game over
             if (placesLeft == 0)
             {
                 gameOver = true;
                 return;
             }
-
-            if (!hasMoves() && !gameOver)
+            //If current side has no possible moves..
+            if (!hasMoves())
             {
                 int[] scores = scoreBoard(spaceOwner, false);
 
-                //If because someone has 0 chips left, game over
+                //Is it because someone has no chips on the board?
                 if(scores[0] * scores[1] == 0)
                 {
                     gameOver = true;
                 }
-                //If neither have moves, game over
-                else if(++stallCount >= 2)
+                if(++stall >= 2)
                 {
                     gameOver = true;
                 }
-                //Carry on to next player
+                //Carry on to next player and use alert text to explain to user
                 else
                 {
                     String player = playerTurn ? "YOU" : "AI";
                     alert.text = player + " HAD NO MOVES!";
+                    Invoke("resetAlertText", 2);
                     playerTurn = !playerTurn;
                 }
                 return;
             }
-
+            stall = 0;
+            
+            //User's turn
             if (playerTurn)
             {
-                
-                
-
                 if (Input.GetMouseButtonDown(0))
                 {
                     Debug.Log("Player Turn");
@@ -145,15 +135,20 @@ public class Game_Control : MonoBehaviour {
                         if (x >= 0 && x < 8 &&
                            yPos <= 0 && y < 8)
                         {
+                            //If valid move
                             if (isMove(x, y, spaceOwner))
                             {
-                                //Place piece
-                                GameObject newPiece = Instantiate(chip, new Vector3((float)(x + .5), (float)(yPos - .5), (float)8.0), transform.rotation);
-                                newPiece.transform.Rotate(180, 0, 0);
+                                //Visually create piece and animate it down to board
+                                GameObject newPiece = Instantiate(chip, new Vector3((float)(x + .5), (float)(yPos - .5), 0), transform.rotation);
+                                newPiece.transform.Rotate(180, 0, 0); //Make black(user color)
+                                newPiece.transform.DOMoveZ(8, (float).5, true);
+
+                                //Update game state
                                 boardSpaces[x, y] = newPiece;
                                 spaceOwner[x, y] = 1;
                                 placesLeft--;
 
+                                //Do all flips that occured from move
                                 findFlipDirections(x, y, spaceOwner, true);
                                 playerTurn = !playerTurn;
                             }
@@ -214,6 +209,7 @@ public class Game_Control : MonoBehaviour {
         //Array for negamax to reference
         int[] nextMove = new int[2] { -1, -1 };
         negaMax(spaceOwner, difficulty, ref nextMove);
+
         //Reset this right away
         playerTurn = false;
         if (nextMove[0] >= 0 && nextMove[1] >= 0)
@@ -221,7 +217,8 @@ public class Game_Control : MonoBehaviour {
             int x = nextMove[0];
             int y = nextMove[1];
             checkFlips(x, y, spaceOwner);
-            GameObject newPiece = Instantiate(chip, new Vector3((float)(x + .5), (float)(-y - .5), (float)8.0), transform.rotation);
+            GameObject newPiece = Instantiate(chip, new Vector3((float)(x + .5), (float)(-y - .5), 0), transform.rotation);
+            newPiece.transform.DOMoveZ(8, (float)0.5, true);
             boardSpaces[x, y] = newPiece;
             spaceOwner[x, y] = 2;
             placesLeft--;
@@ -234,6 +231,7 @@ public class Game_Control : MonoBehaviour {
         playerTurn = true;
     }
 
+    //Used for debugging
     private static void DebugBoard()
     {
         Debug.Log("[" + spaceOwner[0, 0] + "," + spaceOwner[1, 0] + "," + spaceOwner[2, 0] + "," + spaceOwner[3, 0] + "," + spaceOwner[4, 0] + "," + spaceOwner[5, 0] + "," + spaceOwner[6, 0] + "," + spaceOwner[7, 0] + "]\n" +
@@ -339,7 +337,7 @@ public class Game_Control : MonoBehaviour {
     }
 
 
-    //Is there a space around chosen point that is a chip and not our color?
+    //Check that chosen space doesn't have a chip already and that there are chips to flip with this move.
     bool isMove(int x, int y, int[,] board)
     {
         if (board[x, y] != 0)
@@ -363,7 +361,7 @@ public class Game_Control : MonoBehaviour {
         return result;
     }
 
-    //Populate flipCount array for validation as well as future flipping.
+    //Populate flipCount array for validation as well as for flipping chips later.
     void checkFlips(int x, int y, int[,] board)
     {
         flipCounts = new int[8];
@@ -455,6 +453,7 @@ public class Game_Control : MonoBehaviour {
         return playerTurn ? board[x, y] == 1 : board[x, y] == 2;
     }
 
+    //For each direction we had flips, call flipPieces in that direction
     void findFlipDirections(int x, int y, int[,] board, bool realMove)
     {                
         if(flipCounts[0] > 0)
@@ -491,7 +490,11 @@ public class Game_Control : MonoBehaviour {
         }
     }
 
-    //Recursively flip pieces until allied piece is reached.
+    /*
+     * Recursively flip pieces until allied piece is reached.
+     * 
+     * @param realMove | true if we need to involve the actual GameObjects and animate them, false if negamax planning
+     */
     void flipPieces(int startX, int startY, int xModify, int yModify, int[,] board, bool realMove)
     {
 
@@ -512,9 +515,7 @@ public class Game_Control : MonoBehaviour {
             {
                 int targetRotation = playerTurn ? 90 : -90;
                 boardSpaces[currentX, currentY].transform.DORotate(new Vector3(targetRotation, 0, 0), 1);
-                //boardSpaces[currentX, currentY].transform.Rotate(new Vector3(180, 0, 0));
             }
-                
 
             //Change owner
             board[currentX, currentY] = playerTurn ? 1 : 2;
@@ -522,5 +523,10 @@ public class Game_Control : MonoBehaviour {
             //Keep going
             flipPieces(currentX, currentY, xModify, yModify, board, realMove);
         }
+    }
+
+    void resetAlertText()
+    {
+        alert.text = "";
     }
 }
