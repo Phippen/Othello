@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using DG.Tweening;
 
 public class Game_Control : MonoBehaviour {
 
@@ -29,7 +29,7 @@ public class Game_Control : MonoBehaviour {
 
     public Slider difficultySlider;
     public Text difficultyText;
-    private int difficulty;
+    private int difficulty = 1;
 
     private bool gameOver;
     //Increments when there are no moves on a player's turn and resets on a played move, if it hits 2, game over.
@@ -57,46 +57,49 @@ public class Game_Control : MonoBehaviour {
         spaceOwner[4, 4] = 1;
         spaceOwner[3, 4] = 2;
         spaceOwner[4, 3] = 2;
+
+        //Initialize animation asset
+        DOTween.Init(false, true, LogBehaviour.ErrorsOnly);
     }
 
     void Update () {
 
         if(gameOver)
         {
-            //Perhaps a reset
+            int pScore = 0;
+            int aScore = 0;
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 8; j++)
+                {
+                    if (spaceOwner[i, j] == 1)
+                    {
+                        pScore++;
+                    }
+                    else if (spaceOwner[i, j] == 2)
+                    {
+                        aScore++;
+                    }
+                }
+            }
+
+            if (pScore > aScore)
+                alert.text = "You have won the game!";
+            else if (pScore == aScore)
+                alert.text = "It's a draw!";
+            else
+                alert.text = "You have lost!";
+            return;
         }
         else
         {
             if (placesLeft == 0)
             {
                 gameOver = true;
-                int pScore = 0;
-                int aScore = 0;
-                for (int i = 0; i < 8; i++)
-                {
-                    for (int j = 0; j < 8; j++)
-                    {
-                        if (spaceOwner[i, j] == 1)
-                        {
-                            pScore++;
-                        }
-                        else if (spaceOwner[i, j] == 2)
-                        {
-                            aScore++;
-                        }
-                    }
-                }
-
-                if (pScore > aScore)
-                    alert.text = "You have won the game!";
-                else if (pScore == aScore)
-                    alert.text = "It's a draw!";
-                else
-                    alert.text = "You have lost!";
                 return;
             }
 
-            if (!hasMoves())
+            if (!hasMoves() && !gameOver)
             {
                 int[] scores = scoreBoard(spaceOwner, false);
 
@@ -106,7 +109,7 @@ public class Game_Control : MonoBehaviour {
                     gameOver = true;
                 }
                 //If neither have moves, game over
-                else if(++stallCount == 2)
+                else if(++stallCount >= 2)
                 {
                     gameOver = true;
                 }
@@ -506,7 +509,12 @@ public class Game_Control : MonoBehaviour {
         {
             //Rotate piece visually if we're actually making a move
             if (realMove)
-                boardSpaces[currentX, currentY].transform.Rotate(new Vector3(180, 0, 0));
+            {
+                int targetRotation = playerTurn ? 90 : -90;
+                boardSpaces[currentX, currentY].transform.DORotate(new Vector3(targetRotation, 0, 0), 1);
+                //boardSpaces[currentX, currentY].transform.Rotate(new Vector3(180, 0, 0));
+            }
+                
 
             //Change owner
             board[currentX, currentY] = playerTurn ? 1 : 2;
