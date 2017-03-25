@@ -208,8 +208,6 @@ public class Game_Control : MonoBehaviour {
 
     void AI()
     {
-        //Check if difficulty changed
-        checkDifficulty();
         //Array for negamax to reference
         int[] nextMove = new int[2] { -1, -1 };
         negaMax(spaceOwner, difficulty, ref nextMove);
