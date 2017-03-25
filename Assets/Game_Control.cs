@@ -27,6 +27,8 @@ public class Game_Control : MonoBehaviour {
     public int difficulty = 1;
 
     private bool gameOver;
+    //Increments when there are no moves on a player's turn and resets on a played move, if it hits 2, game over.
+    private int stallCount = 0;
 
     void Start() {
 
@@ -56,10 +58,7 @@ public class Game_Control : MonoBehaviour {
 
         if(gameOver)
         {
-            if(Input.anyKeyDown)
-            {
-                SceneManager.LoadScene("Board");
-            }
+            //Perhaps a reset
         }
         else
         {
@@ -92,14 +91,34 @@ public class Game_Control : MonoBehaviour {
                 return;
             }
 
+            if (!hasMoves())
+            {
+                int[] scores = scoreBoard(spaceOwner, false);
+
+                //If because someone has 0 chips left, game over
+                if(scores[0] * scores[1] == 0)
+                {
+                    gameOver = true;
+                }
+                //If neither have moves, game over
+                else if(++stallCount == 2)
+                {
+                    gameOver = true;
+                }
+                //Carry on to next player
+                else
+                {
+                    String player = playerTurn ? "YOU" : "AI";
+                    alert.text = player + " HAD NO MOVES!";
+                    playerTurn = !playerTurn;
+                }
+                return;
+            }
+
             if (playerTurn)
             {
-                if (!hasMoves())
-                {
-                    alert.text = "NO MOVES!";
-                    playerTurn = !playerTurn;
-                    return;
-                }
+                
+                
 
                 if (Input.GetMouseButtonDown(0))
                 {
@@ -129,6 +148,10 @@ public class Game_Control : MonoBehaviour {
 
                                 findFlipDirections(x, y, spaceOwner, true);
                                 playerTurn = !playerTurn;
+                            }
+                            else
+                            {
+                                Debug.Log("That was not a valid move.");
                             }
 
                         }
@@ -163,7 +186,7 @@ public class Game_Control : MonoBehaviour {
     //By summing the 1's we have player score and summing 2's we get AI score, using this to avoid incrementing and decrementing bugs when placing/flipping.
     private void updateScore()
     {
-        int[] currentScores = scoreBoard(spaceOwner);
+        int[] currentScores = scoreBoard(spaceOwner, false);
         playerScoreText.text = "Player Score : " + currentScores[0];
         AIScoreText.text = "AI Score : " + currentScores[1];
     }
@@ -175,7 +198,6 @@ public class Game_Control : MonoBehaviour {
     {
         //Array for negamax to reference
         int[] nextMove = new int[2] { -1, -1 };
-        
         negaMax(spaceOwner, difficulty, ref nextMove);
         //Reset this right away
         playerTurn = false;
@@ -188,12 +210,11 @@ public class Game_Control : MonoBehaviour {
             boardSpaces[x, y] = newPiece;
             spaceOwner[x, y] = 2;
             placesLeft--;
-
             findFlipDirections(x, y, spaceOwner, true);
         }
         else
         {
-            Debug.Log("boardChange still negative");
+            Debug.Log("Error: A best move was not found.");
         }
         playerTurn = true;
     }
@@ -209,8 +230,12 @@ public class Game_Control : MonoBehaviour {
                     "[" + spaceOwner[0, 6] + "," + spaceOwner[1, 6] + "," + spaceOwner[2, 6] + "," + spaceOwner[3, 6] + "," + spaceOwner[4, 6] + "," + spaceOwner[5, 6] + "," + spaceOwner[6, 6] + "," + spaceOwner[7, 6] + "]\n" +
                     "[" + spaceOwner[0, 7] + "," + spaceOwner[1, 7] + "," + spaceOwner[2, 7] + "," + spaceOwner[3, 7] + "," + spaceOwner[4, 7] + "," + spaceOwner[5, 7] + "," + spaceOwner[6, 7] + "," + spaceOwner[7, 7] + "]\n" );
     }
-
-    private int[] scoreBoard(int[,] board)
+    /*
+     * @return int[] | { playerScore , AIScore }
+     * @param board | Board to score
+     * @param bias | Should hueristic or traditional scoring be used?
+     */
+    private int[] scoreBoard(int[,] board, bool hueristic)
     {
         int newPlayerScore = 0;
         int newAIScore = 0;
@@ -219,15 +244,15 @@ public class Game_Control : MonoBehaviour {
         {
             for (int j = 0; j < 8; j++)
             {
-                
+                //Do I like ternarys too much? Likely.. If we are scoring for negamax, give corners and sides weight, otherwise we want actual chip count score for UI, so just count chips.
                 if (board[i, j] == 1)
                 {
-                    int scoreBias = isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1;
+                    int scoreBias = hueristic ? (isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1) : 1;
                     newPlayerScore += scoreBias;
                 }
                 else if (board[i, j] == 2)
                 {
-                    int scoreBias = isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1;
+                    int scoreBias = hueristic ? (isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1) : 1;
                     newAIScore += scoreBias;
                 }
             }
@@ -261,7 +286,7 @@ public class Game_Control : MonoBehaviour {
         //No more thinking, score the board
         if (depth == 0)
         {
-            int[] scores = scoreBoard(board);
+            int[] scores = scoreBoard(board, true);
             //playerScore - AIScore, since this is being returned to be negated already, it will become AI advantage so leave it if we are returning to AI perspective.
             int pAdvantage = scores[0] - scores[1];
 
@@ -274,8 +299,8 @@ public class Game_Control : MonoBehaviour {
             {
                 if (isMove(i, j, board))
                 {
-                    //"Make" the move
-                    int[,] newBoard = board;
+                    //"Make" the move on a fake board
+                    int[,] newBoard = (int[,])board.Clone();
                     newBoard[i, j] = playerTurn ? 1 : 2;
 
                     //Alter our new board accordingly
@@ -285,7 +310,6 @@ public class Game_Control : MonoBehaviour {
                     int[] childBestMove = new int[2];
                     playerTurn = !playerTurn;
                     int score = -negaMax(newBoard, depth - 1, ref childBestMove);
-                    Debug.Log("Returned score from " + i + "," + j + ": " + score);
                     //If this move path is better than previous best..
                     if(score > bestScore)
                     {
