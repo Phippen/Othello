@@ -13,6 +13,7 @@ public class Game_Control : MonoBehaviour {
 
     //Used to keep track of flip counts in each direction (clockwise starting at top-left)
     static int[] flipCounts = new int[8];
+
     //Prefab
     public GameObject chip;
     //Keep track of turn
@@ -20,11 +21,15 @@ public class Game_Control : MonoBehaviour {
     //Decrement on piece placement until 0
     private int placesLeft = 60;
 
+
+
     public Text alert;
     public Text playerScoreText;
     public Text AIScoreText;
 
-    public int difficulty = 1;
+    public Slider difficultySlider;
+    public Text difficultyText;
+    private int difficulty;
 
     private bool gameOver;
     //Increments when there are no moves on a player's turn and resets on a played move, if it hits 2, game over.
@@ -168,6 +173,13 @@ public class Game_Control : MonoBehaviour {
         }
     }
 
+    public void checkDifficulty()
+    {
+        difficulty = (int)difficultySlider.value;
+        difficultyText.text = "Difficulty : " + difficulty;
+    }
+
+
     private bool hasMoves()
     {
         for (int i = 0; i < 8; i++)
@@ -196,6 +208,8 @@ public class Game_Control : MonoBehaviour {
 
     void AI()
     {
+        //Check if difficulty changed
+        checkDifficulty();
         //Array for negamax to reference
         int[] nextMove = new int[2] { -1, -1 };
         negaMax(spaceOwner, difficulty, ref nextMove);
