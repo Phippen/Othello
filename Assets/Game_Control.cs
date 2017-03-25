@@ -260,12 +260,12 @@ public class Game_Control : MonoBehaviour {
                 //Do I like ternarys too much? Likely.. If we are scoring for negamax, give corners and sides weight, otherwise we want actual chip count score for UI, so just count chips.
                 if (board[i, j] == 1)
                 {
-                    int scoreBias = hueristic ? (isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1) : 1;
+                    int scoreBias = hueristic ? (isCorner(i, j) ? 7 : isSide(i, j) ? 3 : 1) : 1;
                     newPlayerScore += scoreBias;
                 }
                 else if (board[i, j] == 2)
                 {
-                    int scoreBias = hueristic ? (isCorner(i, j) ? 6 : isSide(i, j) ? 3 : 1) : 1;
+                    int scoreBias = hueristic ? (isCorner(i, j) ? 7 : isSide(i, j) ? 3 : 1) : 1;
                     newAIScore += scoreBias;
                 }
             }
